@@ -1,0 +1,84 @@
+name: Build Our OS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  web-and-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      # This repo is source-only. Generate the platform folders,
+      # then use this repo's app code in the generated project.
+      - name: Scaffold Flutter project
+        run: |
+          flutter create --project-name our_os app
+          cp lib/main.dart app/lib/main.dart
+          cp pubspec.yaml app/pubspec.yaml
+          cp analysis_options.yaml app/analysis_options.yaml
+          cp test/widget_test.dart app/test/widget_test.dart
+      - name: Analyse and build
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter build web --release
+          flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: our-os-web
+          path: app/build/web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: our-os-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Scaffold Flutter project
+        run: |
+          flutter config --enable-windows-desktop
+          flutter create --project-name our_os app
+          cp lib/main.dart app/lib/main.dart
+          cp pubspec.yaml app/pubspec.yaml
+          cp analysis_options.yaml app/analysis_options.yaml
+      - name: Build Windows
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: our-os-windows
+          path: app/build/windows/x64/runner/Release
+
+  ios-check:
+    # Proves the code compiles for iOS. Installing on a real iPhone
+    # still needs Apple code signing, which this job does not do.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Scaffold Flutter project
+        run: |
+          flutter create --project-name our_os app
+          cp lib/main.dart app/lib/main.dart
+          cp pubspec.yaml app/pubspec.yaml
+          cp analysis_options.yaml app/analysis_options.yaml
+      - name: Build iOS (no codesign)
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build ios --release --no-codesign
